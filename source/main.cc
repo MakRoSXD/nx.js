@@ -772,6 +772,73 @@ static void js_hid_send_vibration_values(
 	}
 }
 
+// Six-axis sensors (gyroscope + accelerometer) of handheld Joy-Cons,
+// Pro Controller and a dual Joy-Con pair, as in the libnx "hid/sixaxis" example.
+// Handle slots: 0 = handheld, 1 = Pro (full key), 2/3 = dual Joy-Con left/right.
+static HidSixAxisSensorHandle nx_sixaxis_handles[4];
+static bool nx_sixaxis_started = false;
+
+static void js_hid_six_axis_start(const FunctionCallbackInfo<Value> &info) {
+	if (nx_sixaxis_started)
+		return;
+	hidGetSixAxisSensorHandles(&nx_sixaxis_handles[0], 1,
+	                           HidNpadIdType_Handheld,
+	                           HidNpadStyleTag_NpadHandheld);
+	hidGetSixAxisSensorHandles(&nx_sixaxis_handles[1], 1, HidNpadIdType_No1,
+	                           HidNpadStyleTag_NpadFullKey);
+	hidGetSixAxisSensorHandles(&nx_sixaxis_handles[2], 2, HidNpadIdType_No1,
+	                           HidNpadStyleTag_NpadJoyDual);
+	for (int i = 0; i < 4; i++)
+		hidStartSixAxisSensor(nx_sixaxis_handles[i]);
+	nx_sixaxis_started = true;
+}
+
+static Local<Array> nx_vec3(Isolate *iso, Local<Context> context, float x,
+                            float y, float z) {
+	Local<Array> a = Array::New(iso, 3);
+	a->Set(context, 0, Number::New(iso, x)).Check();
+	a->Set(context, 1, Number::New(iso, y)).Check();
+	a->Set(context, 2, Number::New(iso, z)).Check();
+	return a;
+}
+
+// $.hidSixAxisRead(slot) -> { sample, acceleration, angularVelocity, angle,
+// direction } or undefined when the sensor has produced no sample.
+static void js_hid_six_axis_read(const FunctionCallbackInfo<Value> &info) {
+	Isolate *iso = info.GetIsolate();
+	Local<Context> context = iso->GetCurrentContext();
+	int slot = info[0]->Int32Value(context).FromMaybe(0);
+	if (!nx_sixaxis_started || slot < 0 || slot > 3)
+		return;
+	HidSixAxisSensorState st = {0};
+	size_t n = hidGetSixAxisSensorStates(nx_sixaxis_handles[slot], &st, 1);
+	if (n == 0 || st.sampling_number == 0)
+		return;
+	Local<Object> o = Object::New(iso);
+	o->Set(context, nx_str(iso, "sample"),
+	       Number::New(iso, (double)st.sampling_number))
+	    .Check();
+	o->Set(context, nx_str(iso, "acceleration"),
+	       nx_vec3(iso, context, st.acceleration.x, st.acceleration.y,
+	               st.acceleration.z))
+	    .Check();
+	o->Set(context, nx_str(iso, "angularVelocity"),
+	       nx_vec3(iso, context, st.angular_velocity.x, st.angular_velocity.y,
+	               st.angular_velocity.z))
+	    .Check();
+	o->Set(context, nx_str(iso, "angle"),
+	       nx_vec3(iso, context, st.angle.x, st.angle.y, st.angle.z))
+	    .Check();
+	Local<Array> dir = Array::New(iso, 9);
+	for (int r = 0; r < 3; r++)
+		for (int c = 0; c < 3; c++)
+			dir->Set(context, r * 3 + c,
+			         Number::New(iso, st.direction.direction[r][c]))
+			    .Check();
+	o->Set(context, nx_str(iso, "direction"), dir).Check();
+	info.GetReturnValue().Set(o);
+}
+
 // ---------------------------------------------------------------------------
 // File reading helper.
 // ---------------------------------------------------------------------------
@@ -1018,6 +1085,8 @@ static void build_init_object(Isolate *iso, Local<Context> context,
 	            js_hid_initialize_vibration_devices);
 	NX_SET_FUNC(init_obj, "hidSendVibrationValues",
 	            js_hid_send_vibration_values);
+	NX_SET_FUNC(init_obj, "hidSixAxisStart", js_hid_six_axis_start);
+	NX_SET_FUNC(init_obj, "hidSixAxisRead", js_hid_six_axis_read);
 
 	// Switch.version
 	Local<Object> version = Object::New(iso);

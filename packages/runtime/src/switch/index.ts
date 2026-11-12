@@ -28,6 +28,7 @@ export * from './nifm';
 export * from './ns';
 export * from './profile';
 export * from './savedata';
+export * from './sixaxis';
 export * from './service';
 export { Socket, Server };
 export { WebApplet, type WebAppletOptions } from '../web-applet';

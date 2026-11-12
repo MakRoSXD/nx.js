@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
+      - gyro
     tags:
       - "!*"
   pull_request:
+  workflow_dispatch:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 

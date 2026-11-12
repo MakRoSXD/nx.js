@@ -1,3 +1,4 @@
+import type { SixAxisState } from './switch/sixaxis';
 import type { PromiseState } from '@nx.js/inspect';
 import type { CanvasRenderingContext2D } from './canvas/canvas-rendering-context-2d';
 import type { ImageBitmap } from './canvas/image-bitmap';
@@ -548,6 +549,8 @@ export interface Init {
 	hidInitializeVibrationDevices(): void;
 	hidGetKeyboardStates(): Keys;
 	hidSendVibrationValues(v: VibrationValues): void;
+	hidSixAxisStart(): void;
+	hidSixAxisRead(slot: number): SixAxisState | undefined;
 
 	// webgl.c
 	/**
